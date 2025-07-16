@@ -1,0 +1,7 @@
+Flask==2.3.2 # Or your preferred Flask version
+requests==2.31.0 # Or your preferred requests version
+google-generativeai==0.3.0 # Or your preferred google-generativeai version
+Flask-Dance==7.0.0 # Or your preferred Flask-Dance version
+Authlib==1.2.0 # Or your preferred Authlib version
+Flask-Cors==4.0.0 # Or your preferred Flask-Cors version
+gunicorn==21.2.0 # Or your preferred Gunicorn version
