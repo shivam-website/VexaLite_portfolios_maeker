@@ -3,7 +3,7 @@ import requests
 import time
 import uuid
 import os
-from flask import Flask, render_template, request, jsonify, redirect, session, url_for, Response, stream_with_context
+from flask import Flask, request, jsonify, session, Response, stream_with_context
 import google.generativeai as genai
 from flask_dance.contrib.google import make_google_blueprint, google
 from authlib.integrations.flask_client import OAuth
@@ -90,11 +90,7 @@ def ask_ai_with_memory(user_id, chat_id, instruction):
         return "Sorry, I'm having trouble processing your request right now. Please try again later."
 
 # --- Flask Routes ---
-@app.route('/')
-def index():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    return render_template('index.html') # Note: This `index.html` is for the full app, not the embed.
+# Removed the root '/' route that rendered index.html
 
 @app.route('/ask', methods=['POST'])
 def handle_query():
@@ -123,7 +119,7 @@ def handle_query():
 
     return Response(stream_with_context(generate_response_stream()), mimetype='text/plain')
 
-# Authentication Routes (kept for session management)
+# Authentication Routes (modified to return JSON or simple responses)
 google_bp = make_google_blueprint(
     client_id="978102306464-qdjll3uos10m1nd5gcnr9iql9688db58.apps.googleusercontent.com",
     client_secret="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",
@@ -143,11 +139,31 @@ microsoft = oauth.register(
     client_kwargs={'scope': 'User.Read'}
 )
 
+@app.route('/google_login/authorized')
+def google_login_authorized():
+    if not google.authorized:
+        return jsonify({"status": "error", "message": "Google authorization failed."}), 401
+    try:
+        user_info = google.get("/oauth2/v2/userinfo")
+        if user_info.ok:
+            session['user'] = user_info.json().get("email")
+            session['user_id'] = f"google_{user_info.json().get('id')}"
+            print(f"User {session['user']} logged in with Google.")
+            return jsonify({"status": "success", "message": "Logged in with Google.", "user_id": session['user_id']})
+        else:
+            print(f"Google user info request failed: {user_info.text}")
+            return jsonify({"status": "error", "message": "Google user info request failed."}), 500
+    except Exception as e:
+        print(f"Error during Google login: {e}")
+        return jsonify({"status": "error", "message": f"Error during Google login: {str(e)}"}), 500
+
 @app.route('/login')
 def login():
+    # This route is now a placeholder for the backend.
+    # The frontend will handle the actual login UI.
     if 'user_id' in session:
-        return redirect(url_for('index'))
-    return render_template('login.html')
+        return jsonify({"status": "success", "message": "Already logged in.", "user_id": session['user_id']})
+    return jsonify({"status": "info", "message": "Please log in via the frontend."})
 
 @app.route('/guest_login')
 def guest_login():
@@ -157,17 +173,18 @@ def guest_login():
     session['user_id'] = temp_id
     session['is_guest'] = True
     print(f"User logged in as guest with temporary ID: {temp_id}")
-    return redirect(url_for('index'))
+    return jsonify({"status": "success", "message": "Logged in as guest.", "user_id": session['user_id']})
 
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('login'))
+    return jsonify({"status": "success", "message": "Logged out."})
 
 @app.route('/user_info', methods=['GET'])
 def user_info():
     user_email = session.get('user', None)
-    return jsonify({"user_email": user_email})
+    user_id = session.get('user_id', None)
+    return jsonify({"user_email": user_email, "user_id": user_id})
 
 # Chat Management Routes (kept for history persistence)
 @app.route('/start_new_chat', methods=['POST'])
