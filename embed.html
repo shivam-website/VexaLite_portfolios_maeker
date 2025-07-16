@@ -269,7 +269,14 @@
       scrollToBottom();
     });
 
-    document.addEventListener('DOMContentLoaded', startNewChat);
+    document.addEventListener('DOMContentLoaded', () => {
+  startNewChat();
+  // Minimize on load, especially for small screens
+  if (window.innerWidth <= 768) {
+    chatbotContainer.classList.add('minimized');
+  }
+});
+
   </script>
 </body>
 </html>
