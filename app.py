@@ -14,7 +14,7 @@ CORS(app) # Enable CORS for all routes
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "your_fallback_secret_key_here")
 
 # For Canvas, GEMINI_API_KEY can be left empty; Canvas will inject it.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "") 
+GEMINI_API_KEY = "AIzaSyDQJcS5wwBi65AdfW5zHT2ayu1ShWgWcJg"
 
 genai.configure(api_key=GEMINI_API_KEY)
 chat_model = genai.GenerativeModel("gemini-2.0-flash")
