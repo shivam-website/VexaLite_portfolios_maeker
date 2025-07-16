@@ -26,8 +26,15 @@ os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
 def get_user_id():
     if 'user_id' in session:
         return session['user_id']
-    session['user_id'] = str(uuid.uuid4())
-    return session['user_id']
+
+    # Try to get from a custom header (sent by frontend iframe)
+    user_id = request.headers.get("X-Client-ID")
+    if user_id:
+        return user_id
+
+    # Fallback: generate random UUID (for anonymous users)
+    return str(uuid.uuid4())
+
 
 def get_chat_file_path(user_id, chat_id):
     return os.path.join(CHAT_HISTORY_DIR, f"{user_id}_{chat_id}.json")
