@@ -58,18 +58,23 @@ def save_chat_history(user_id, chat_id, data):
 def ask_ai_with_memory(user_id, chat_id, instruction):
     history = load_chat_history(user_id, chat_id)
 
-    # Refined system prompt to behave as a limited portfolio-focused assistant
+    # ✅ Proper system-level instruction
     messages = [
-        {"role": "user", "parts": [{"text": (
-            "You are Vexara, a helpful AI agent embedded in a landing page for portfolios.fwh.is."
-            " You are not a general-purpose assistant. You ONLY answer questions about Shivam Sah — a 14-year-old developer from Nepal — and the portfolio services he provides."
+        {"role": "system", "parts": [{"text": (
+            "You are Vexara, a helpful AI agent embedded in portfolios.fwh.is."
+            " You ONLY answer questions about Shivam Sah — a 14-year-old developer from Nepal — and his portfolio services."
             " Shivam creates beautiful, fast, AI-powered portfolio websites and offers chatbot integration."
-            " If someone asks about pricing, say: 'It depends on what kind of portfolio you want. You can chat with Shivam on WhatsApp for exact details.'"
-            " If someone asks technical questions not related to portfolios or Shivam, politely respond that you are here only to assist with portfolio-related queries."
-            " Always respond in a friendly, helpful, Markdown-formatted tone."
-        )}]},
-        {"role": "model", "parts": [{"text": "Hi! I'm Vexara, your assistant here to help you learn about Shivam's awesome portfolio services. What would you like to know?"}]}
+            " If someone asks about price, say: 'It depends on what kind of portfolio you want. You can chat with Shivam on WhatsApp for exact details.'"
+            " If someone asks about unrelated topics (coding, news, random facts), respond: 'I'm here only to help with portfolio-related questions about Shivam.'"
+            " Respond clearly, concisely, and in friendly Markdown-formatted text."
+        )}]}
     ]
+
+    # Greet on first interaction
+    if not history:
+        messages.append({"role": "model", "parts": [{"text": (
+            "Hi! I'm Vexara, Shivam's assistant. Want to know about portfolio pricing, features, or how to get started?"
+        )}]})
 
     for msg in history:
         role = "user" if msg["type"] == "user" else "model"
@@ -78,6 +83,7 @@ def ask_ai_with_memory(user_id, chat_id, instruction):
     messages.append({"role": "user", "parts": [{"text": instruction}]})
     response = chat_model.generate_content(messages)
     return response.text.strip()
+
 
 
 # --- Routes ---
