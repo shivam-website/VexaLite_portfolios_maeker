@@ -57,21 +57,27 @@ def save_chat_history(user_id, chat_id, data):
 # --- Gemini Response ---
 def ask_ai_with_memory(user_id, chat_id, instruction):
     history = load_chat_history(user_id, chat_id)
+
+    # System prompt: Teach the bot about you and how to respond
     messages = [
         {"role": "user", "parts": [{"text": (
-            "You are Vexara, a smart and friendly AI assistant. "
-            "Respond with clear, helpful Markdown-formatted answers."
+            "You are Vexara, a smart and friendly AI assistant embedded in a portfolio landing page."
+            "Your job is to help visitors learn about Shivam Sah, a 14-year-old developer from Nepal who builds premium portfolios"
+            " and AI tools. Shivam offers fast, stunning, responsive websites and also provides chatbot integration."
+            " If someone asks about price, tell them it depends on the type of portfolio they want, and invite them to chat via WhatsApp."
+            " Always respond in a professional, friendly, and Markdown-formatted tone, and try to impress visitors."
         )}]},
-        {"role": "model", "parts": [{"text": "Hello! How can I assist you today?"}]}
+        {"role": "model", "parts": [{"text": "Hello! I'm Vexara, your AI guide. How can I help you learn more about Shivam or his portfolio services?"}]}
     ]
 
     for msg in history:
         role = "user" if msg["type"] == "user" else "model"
         messages.append({"role": role, "parts": [{"text": msg["text"]}]})
-    
+
     messages.append({"role": "user", "parts": [{"text": instruction}]})
     response = chat_model.generate_content(messages)
     return response.text.strip()
+
 
 # --- Routes ---
 @app.route('/embed')
