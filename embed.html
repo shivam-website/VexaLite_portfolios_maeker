@@ -195,7 +195,7 @@
 
     async function startNewChat() {
       try {
-        const res = await fetch(`${BACKEND_URL}/start_new_chat`, {
+        const res = await fetch(`${BACKEND_URL}/embed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
