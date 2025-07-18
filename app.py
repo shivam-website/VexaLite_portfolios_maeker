@@ -2,12 +2,9 @@ import os
 import uuid
 import time
 import json
-import requests
-import google.generativeai as genai
-from flask import Flask, request, jsonify, session, Response, stream_with_context, render_template
+from flask import Flask, request, jsonify, session, Response, stream_with_context
 from flask_cors import CORS
-from flask_dance.contrib.google import make_google_blueprint, google
-from authlib.integrations.flask_client import OAuth
+import google.generativeai as genai
 
 app = Flask(__name__)
 CORS(app)
@@ -18,132 +15,99 @@ GEMINI_API_KEY = "AIzaSyDQJcS5wwBi65AdfW5zHT2ayu1ShWgWcJg"
 genai.configure(api_key=GEMINI_API_KEY)
 chat_model = genai.GenerativeModel("gemini-2.0-flash")
 
-# --- Chat History Folder ---
-CHAT_HISTORY_DIR = os.path.join(app.root_path, 'chat_history')
+# --- Strict System Instructions ---
+SYSTEM_PROMPT = """
+You are Vexara, the official AI assistant for Shivam Sah's portfolio services at portfolios.fwh.is. 
+
+ABOUT SHIVAM:
+- 14-year-old developer from Nepal
+- Specializes in AI-powered portfolio websites
+- Offers custom chatbot integration
+- Provides fast, modern web solutions
+
+YOUR RULES:
+1. ONLY discuss:
+   - Portfolio website services
+   - Pricing (redirect to WhatsApp)
+   - Shivam's work examples
+   - Technical features of his offerings
+
+2. For portfolio pricing say:
+   "Portfolio pricing starts at $X depending on features. For exact quotes, message Shivam on WhatsApp: [NUMBER]"
+
+3. REJECT all other topics with:
+   "I specialize only in Shivam's portfolio services. Let me know if you need info about his web development offerings!"
+
+RESPONSE FORMAT:
+- Friendly but professional tone
+- Use bullet points for features
+- Keep answers under 3 sentences
+"""
+
+# --- Chat Management ---
+CHAT_HISTORY_DIR = 'chat_history'
 os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
 
-# --- User Management ---
 def get_user_id():
-    if 'user_id' in session:
-        return session['user_id']
+    return session.get('user_id', str(uuid.uuid4()))
 
-    # Try to get from a custom header (sent by frontend iframe)
-    user_id = request.headers.get("X-Client-ID")
-    if user_id:
-        return user_id
+def get_chat_file(user_id, chat_id):
+    return f"{CHAT_HISTORY_DIR}/{user_id}_{chat_id}.json"
 
-    # Fallback: generate random UUID (for anonymous users)
-    return str(uuid.uuid4())
+def load_chat(user_id, chat_id):
+    try:
+        with open(get_chat_file(user_id, chat_id), 'r') as f:
+            return json.load(f)
+    except:
+        return []
 
+def save_chat(user_id, chat_id, messages):
+    with open(get_chat_file(user_id, chat_id), 'w') as f:
+        json.dump(messages, f)
 
-def get_chat_file_path(user_id, chat_id):
-    return os.path.join(CHAT_HISTORY_DIR, f"{user_id}_{chat_id}.json")
-
-def load_chat_history(user_id, chat_id):
-    path = get_chat_file_path(user_id, chat_id)
-    if os.path.exists(path):
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            return []
-    return []
-
-def save_chat_history(user_id, chat_id, data):
-    path = get_chat_file_path(user_id, chat_id)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2)
-
-# --- Gemini Response ---
-def ask_ai_with_memory(user_id, chat_id, instruction):
-    history = load_chat_history(user_id, chat_id)
-
-    # ✅ Proper system-level instruction
-    messages = [
-        {"role": "system", "parts": [{"text": (
-            "You are Vexara, a helpful AI agent embedded in portfolios.fwh.is."
-            " You ONLY answer questions about Shivam Sah — a 14-year-old developer from Nepal — and his portfolio services."
-            " Shivam creates beautiful, fast, AI-powered portfolio websites and offers chatbot integration."
-            " If someone asks about price, say: 'It depends on what kind of portfolio you want. You can chat with Shivam on WhatsApp for exact details.'"
-            " If someone asks about unrelated topics (coding, news, random facts), respond: 'I'm here only to help with portfolio-related questions about Shivam.'"
-            " Respond clearly, concisely, and in friendly Markdown-formatted text."
-        )}]}
-    ]
-
-    # Greet on first interaction
-    if not history:
-        messages.append({"role": "model", "parts": [{"text": (
-            "Hi! I'm Vexara, Shivam's assistant. Want to know about portfolio pricing, features, or how to get started?"
-        )}]})
-
-    for msg in history:
-        role = "user" if msg["type"] == "user" else "model"
-        messages.append({"role": role, "parts": [{"text": msg["text"]}]})
-
-    messages.append({"role": "user", "parts": [{"text": instruction}]})
+# --- AI Response Generator ---
+def generate_response(user_id, chat_id, query):
+    history = load_chat(user_id, chat_id)
+    
+    messages = [{"role": "user", "parts": [SYSTEM_PROMPT]}]
+    messages.extend(history)
+    messages.append({"role": "user", "parts": [query]})
+    
     response = chat_model.generate_content(messages)
-    return response.text.strip()
-
-
+    return response.text
 
 # --- Routes ---
-@app.route('/embed')
-def serve_embed_ui():
-    return render_template("embed.html")
-
-@app.route('/ask', methods=['GET', 'POST'])
-def handle_query():
-    if request.method == 'GET':
-        return jsonify({"status": "ok", "message": "Use POST to send chat."})
-
+@app.route('/ask', methods=['POST'])
+def ask():
     user_id = get_user_id()
-    chat_id = request.form.get('chat_id')
-    instruction = request.form.get('instruction', '').strip()
-
-    if not chat_id or not instruction:
-        return jsonify({"response": "Missing chat_id or instruction."}), 400
-
-    history = load_chat_history(user_id, chat_id)
-    history.append({"type": "user", "text": instruction, "timestamp": time.time()})
-    save_chat_history(user_id, chat_id, history)
-
-    ai_reply = ask_ai_with_memory(user_id, chat_id, instruction)
-
-    history = load_chat_history(user_id, chat_id)
-    history.append({"type": "bot", "text": ai_reply, "timestamp": time.time()})
-    save_chat_history(user_id, chat_id, history)
-
-    def stream_reply():
-        yield ai_reply
-
-    return Response(stream_with_context(stream_reply()), mimetype='text/plain')
-
-@app.route('/start_new_chat', methods=['POST'])
-def start_new_chat():
-    user_id = get_user_id()
-    chat_id = str(uuid.uuid4())
-    save_chat_history(user_id, chat_id, [])
-    return jsonify({"status": "success", "chat_id": chat_id})
-
-# Optional: logout, login, guest login (same as your code)
-@app.route('/guest_login')
-def guest_login():
-    session.clear()
-    temp_id = str(uuid.uuid4())
-    session['user_id'] = temp_id
-    return jsonify({"status": "success", "user_id": temp_id})
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return jsonify({"status": "success", "message": "Logged out."})
-
-@app.route('/user_info')
-def user_info():
+    chat_id = request.json.get('chat_id', str(uuid.uuid4()))
+    query = request.json.get('query', '').strip()
+    
+    if not query:
+        return jsonify({"error": "Empty query"}), 400
+    
+    # Save user message
+    history = load_chat(user_id, chat_id)
+    history.append({"role": "user", "parts": [query]})
+    
+    # Get AI response
+    response = generate_response(user_id, chat_id, query)
+    
+    # Save AI response
+    history.append({"role": "model", "parts": [response]})
+    save_chat(user_id, chat_id, history)
+    
     return jsonify({
-        "user_id": session.get("user_id"),
-        "user_email": session.get("user")
+        "response": response,
+        "chat_id": chat_id
     })
 
+@app.route('/new_chat', methods=['POST'])
+def new_chat():
+    user_id = get_user_id()
+    chat_id = str(uuid.uuid4())
+    save_chat(user_id, chat_id, [])
+    return jsonify({"chat_id": chat_id})
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(host='0.0.0.0', port=5000)
