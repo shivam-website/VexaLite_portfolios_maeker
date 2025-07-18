@@ -195,7 +195,7 @@
 
     async function startNewChat() {
       try {
-        const res = await fetch(`${BACKEND_URL}/embed`, {
+        const res = await fetch(`${BACKEND_URL}/start_new_chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -269,14 +269,7 @@
       scrollToBottom();
     });
 
-    document.addEventListener('DOMContentLoaded', () => {
-  startNewChat();
-  // Minimize on load, especially for small screens
-  if (window.innerWidth <= 768) {
-    chatbotContainer.classList.add('minimized');
-  }
-});
-
+    document.addEventListener('DOMContentLoaded', startNewChat);
   </script>
 </body>
 </html>
